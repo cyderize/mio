@@ -1,5 +1,6 @@
 use std::mem;
 use std::num::Int;
+use std::error::FromError;
 use error::{MioResult, MioError, MioErrorKind, ToMioError};
 use net::{AddressFamily, SockAddr, IPv4Addr, SocketType};
 use net::SocketType::{Dgram, Stream};
@@ -14,21 +15,6 @@ mod nix {
     pub use nix::errno::{EINPROGRESS, EAGAIN, EADDRINUSE};
     pub use nix::sys::socket::*;
     pub use nix::unistd::*;
-}
-
-impl ToMioError for SysError {
-	fn to_mio_error(self) -> MioError {
-		let kind = match self.kind {
-            nix::EAGAIN => MioErrorKind::WouldBlock,
-            nix::EADDRINUSE => MioErrorKind::AddrInUse,
-            _ => MioErrorKind::OtherError
-        };
-
-        MioError {
-            kind: kind,
-            sys: Some(self)
-        }
-	}
 }
 
 /*
@@ -94,8 +80,7 @@ impl Drop for IoDesc {
  */
 
 pub fn pipe() -> MioResult<(IoDesc, IoDesc)> {
-    let (rd, wr) = try!(nix::pipe2(nix::O_NONBLOCK | nix::O_CLOEXEC)
-                        .map_err(MioError::from_sys_error));
+    let (rd, wr) = try!(nix::pipe2(nix::O_NONBLOCK | nix::O_CLOEXEC));
 
     Ok((IoDesc { fd: rd }, IoDesc { fd: wr }))
 }
@@ -119,8 +104,7 @@ pub fn socket(af: AddressFamily, sock_type: SocketType) -> MioResult<IoDesc> {
     };
 
     Ok(IoDesc {
-        fd: try!(nix::socket(family, socket_type, nix::SOCK_NONBLOCK | nix::SOCK_CLOEXEC)
-                    .map_err(MioError::from_sys_error))
+        fd: try!(nix::socket(family, socket_type, nix::SOCK_NONBLOCK | nix::SOCK_CLOEXEC))
     })
 }
 
@@ -130,32 +114,31 @@ pub fn connect(io: &IoDesc, addr: &SockAddr) -> MioResult<bool> {
         Err(e) => {
             match e.kind {
                 nix::EINPROGRESS => Ok(false),
-                _ => Err(MioError::from_sys_error(e))
+                _ => Err(FromError::from_error(e))
             }
         }
     }
 }
 
 pub fn bind(io: &IoDesc, addr: &SockAddr) -> MioResult<()> {
-    nix::bind(io.fd, &from_sockaddr(addr))
-        .map_err(MioError::from_sys_error)
+    try!(nix::bind(io.fd, &from_sockaddr(addr)));
+	Ok(())
 }
 
 pub fn listen(io: &IoDesc, backlog: usize) -> MioResult<()> {
-    nix::listen(io.fd, backlog)
-        .map_err(MioError::from_sys_error)
+    try!(nix::listen(io.fd, backlog));
+	Ok(())
 }
 
 pub fn accept(io: &IoDesc) -> MioResult<IoDesc> {
     Ok(IoDesc {
-        fd: try!(nix::accept4(io.fd, nix::SOCK_NONBLOCK | nix::SOCK_CLOEXEC)
-                     .map_err(MioError::from_sys_error))
+        fd: try!(nix::accept4(io.fd, nix::SOCK_NONBLOCK | nix::SOCK_CLOEXEC))
     })
 }
 
 #[inline]
 pub fn recvfrom(io: &IoDesc, buf: &mut [u8]) -> MioResult<(usize, SockAddr)> {
-    match nix::recvfrom(io.fd, buf).map_err(MioError::from_sys_error) {
+    match try!(nix::recvfrom(io.fd, buf)) {
         Ok((cnt, addr)) => Ok((cnt, to_sockaddr(&addr))),
         Err(e) => Err(e)
     }
@@ -163,13 +146,13 @@ pub fn recvfrom(io: &IoDesc, buf: &mut [u8]) -> MioResult<(usize, SockAddr)> {
 
 #[inline]
 pub fn sendto(io: &IoDesc, buf: &[u8], tgt: &SockAddr) -> MioResult<usize> {
-    let res = try!(nix::sendto(io.fd, buf, &from_sockaddr(tgt), nix::MSG_DONTWAIT).map_err(MioError::from_sys_error));
+    let res = try!(nix::sendto(io.fd, buf, &from_sockaddr(tgt), nix::MSG_DONTWAIT));
     Ok(res)
 }
 
 #[inline]
 pub fn read(io: &IoDesc, dst: &mut [u8]) -> MioResult<usize> {
-    let res = try!(nix::read(io.fd, dst).map_err(MioError::from_sys_error));
+    let res = try!(nix::read(io.fd, dst));
 
     if res == 0 {
         return Err(MioError::eof());
@@ -180,7 +163,8 @@ pub fn read(io: &IoDesc, dst: &mut [u8]) -> MioResult<usize> {
 
 #[inline]
 pub fn write(io: &IoDesc, src: &[u8]) -> MioResult<usize> {
-    nix::write(io.fd, src).map_err(MioError::from_sys_error)
+    try!(nix::write(io.fd, src));
+	Ok(())
 }
 
 // ===== Socket options =====
@@ -192,50 +176,48 @@ pub fn reuseaddr(_io: &IoDesc) -> MioResult<usize> {
 pub fn set_reuseaddr(io: &IoDesc, val: bool) -> MioResult<()> {
     let v: nix::c_int = if val { 1 } else { 0 };
 
-    nix::setsockopt(io.fd, nix::SOL_SOCKET, nix::SO_REUSEADDR, &v)
-        .map_err(MioError::from_sys_error)
+    try!(nix::setsockopt(io.fd, nix::SOL_SOCKET, nix::SO_REUSEADDR, &v));
+	Ok(())
 }
 
 pub fn set_reuseport(io: &IoDesc, val: bool) -> MioResult<()> {
     let v: nix::c_int = if val { 1 } else { 0 };
 
-    nix::setsockopt(io.fd, nix::SOL_SOCKET, nix::SO_REUSEPORT, &v)
-        .map_err(MioError::from_sys_error)
+    try!(nix::setsockopt(io.fd, nix::SOL_SOCKET, nix::SO_REUSEPORT, &v));
+	Ok(())
 }
 
 pub fn set_tcp_nodelay(io: &IoDesc, val: bool) -> MioResult<()> {
     let v: nix::c_int = if val { 1 } else { 0 };
 
-    nix::setsockopt(io.fd, nix::IPPROTO_TCP, nix::TCP_NODELAY, &v)
-        .map_err(MioError::from_sys_error)
+    try!(nix::setsockopt(io.fd, nix::IPPROTO_TCP, nix::TCP_NODELAY, &v));
+	Ok(())
 }
 
 pub fn join_multicast_group(io: &IoDesc, addr: &IpAddr, interface: &Option<IpAddr>) -> MioResult<()> {
     let grp_req = try!(make_ip_mreq(addr, interface));
 
-    nix::setsockopt(io.fd, nix::IPPROTO_IP, nix::IP_ADD_MEMBERSHIP, &grp_req)
-        .map_err(MioError::from_sys_error)
+    try!(nix::setsockopt(io.fd, nix::IPPROTO_IP, nix::IP_ADD_MEMBERSHIP, &grp_req));
+	Ok(())
 }
 
 pub fn leave_multicast_group(io: &IoDesc, addr: &IpAddr, interface: &Option<IpAddr>) -> MioResult<()> {
     let grp_req = try!(make_ip_mreq(addr, interface));
 
-    nix::setsockopt(io.fd, nix::IPPROTO_IP, nix::IP_ADD_MEMBERSHIP, &grp_req)
-        .map_err(MioError::from_sys_error)
+    try!(nix::setsockopt(io.fd, nix::IPPROTO_IP, nix::IP_ADD_MEMBERSHIP, &grp_req));
+	Ok(())
 }
 
 pub fn set_multicast_ttl(io: &IoDesc, val: u8) -> MioResult<()> {
     let v: nix::IpMulticastTtl = val;
 
-    nix::setsockopt(io.fd, nix::IPPROTO_IP, nix::IP_MULTICAST_TTL, &v)
-        .map_err(MioError::from_sys_error)
+    try!(nix::setsockopt(io.fd, nix::IPPROTO_IP, nix::IP_MULTICAST_TTL, &v));
 }
 
 pub fn linger(io: &IoDesc) -> MioResult<usize> {
     let mut linger: nix::linger = unsafe { mem::uninitialized() };
 
-    try!(nix::getsockopt(io.fd, nix::SOL_SOCKET, nix::SO_LINGER, &mut linger)
-            .map_err(MioError::from_sys_error));
+    try!(nix::getsockopt(io.fd, nix::SOL_SOCKET, nix::SO_LINGER, &mut linger));
 
     if linger.l_onoff > 0 {
         Ok(linger.l_linger as usize)
@@ -248,7 +230,7 @@ pub fn getpeername(io: &IoDesc) -> MioResult<SockAddr> {
     let sa : nix::sockaddr_in = unsafe { mem::zeroed() };
     let mut a = nix::SockAddr::SockIpV4(sa);
 
-    try!(nix::getpeername(io.fd, &mut a).map_err(MioError::from_sys_error));
+    try!(nix::getpeername(io.fd, &mut a));
 
     Ok(to_sockaddr(&a))
 }
@@ -257,7 +239,7 @@ pub fn getsockname(io: &IoDesc) -> MioResult<SockAddr> {
     let sa : nix::sockaddr_in = unsafe { mem::zeroed() };
     let mut a = nix::SockAddr::SockIpV4(sa);
 
-    try!(nix::getsockname(io.fd, &mut a).map_err(MioError::from_sys_error));
+    try!(nix::getsockname(io.fd, &mut a));
 
     Ok(to_sockaddr(&a))
 }
@@ -268,8 +250,8 @@ pub fn set_linger(io: &IoDesc, dur_s: usize) -> MioResult<()> {
         l_linger: dur_s as nix::c_int
     };
 
-    nix::setsockopt(io.fd, nix::SOL_SOCKET, nix::SO_LINGER, &linger)
-        .map_err(MioError::from_sys_error)
+    try!(nix::setsockopt(io.fd, nix::SOL_SOCKET, nix::SO_LINGER, &linger));
+	Ok(())
 }
 
 fn make_ip_mreq(group_addr: &IpAddr, iface_addr: &Option<IpAddr>) -> MioResult<nix::ip_mreq> {

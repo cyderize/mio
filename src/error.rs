@@ -1,4 +1,6 @@
 use std::old_io;
+use std::error::{Error, FromError};
+use std::fmt;
 use os::SysError;
 
 use self::MioErrorKind::{
@@ -56,10 +58,6 @@ impl MioError {
         }
     }
 
-    pub fn from_sys_error(err: SysError) -> MioError {
-        err.to_mio_error()
-    }
-
     pub fn is_eof(&self) -> bool {
         match self.kind {
             Eof => true,
@@ -102,4 +100,44 @@ impl MioError {
             EventLoopTerminated => old_io::standard_error(OtherIoError)
         }
     }
+}
+
+impl fmt::Display for MioError {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(f, "{}", self.description())
+	}
+}
+
+impl Error for MioError {
+    fn description(&self) -> &str {
+		match self.kind {
+		    Eof => "End of file or socket closed",
+			WouldBlock => "The operation would have blocked",
+			AddrInUse => "Inet socket address or domain socket path already in use",
+			BufUnderflow => "Buf does not contain enough data to perform read op",
+			BufOverflow => "Buf does not contain enough capacity to perform write op",
+			EventLoopTerminated => "The event loop is not running anymore",
+			OtherError => "System error not covered by other kinds",
+		}
+	}
+}
+
+impl FromError<SysError> for MioError {
+	#[cfg(unix)]
+	fn from_error(err: SysError) -> MioError {
+	    let kind = match err.kind {
+            EAGAIN => WouldBlock,
+            EADDRINUSE => AddrInUse,
+            _ => OtherError
+        };
+
+        MioError {
+            kind: kind,
+            sys: Some(err)
+        }
+	}
+	#[cfg(windows)]
+	fn from_error(err: SysError) -> MioError {
+	    unimplemented!();
+	}
 }
