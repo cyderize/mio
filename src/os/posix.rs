@@ -138,10 +138,8 @@ pub fn accept(io: &IoDesc) -> MioResult<IoDesc> {
 
 #[inline]
 pub fn recvfrom(io: &IoDesc, buf: &mut [u8]) -> MioResult<(usize, SockAddr)> {
-    match try!(nix::recvfrom(io.fd, buf)) {
-        Ok((cnt, addr)) => Ok((cnt, to_sockaddr(&addr))),
-        Err(e) => Err(e)
-    }
+    let (cnt, addr) = try!(nix::recvfrom(io.fd, buf));
+	Ok((cnt, to_sockaddr(&addr)))
 }
 
 #[inline]
