@@ -1,5 +1,5 @@
 use std::old_io;
-use nix::errno::{SysError, EAGAIN, EADDRINUSE};
+use os::SysError;
 
 use self::MioErrorKind::{
     Eof,
@@ -30,6 +30,10 @@ pub enum MioErrorKind {
     OtherError,             // System error not covered by other kinds
 }
 
+pub trait ToMioError {
+	fn to_mio_error(self) -> MioError;
+}
+
 impl MioError {
     pub fn eof() -> MioError {
         MioError {
@@ -53,16 +57,7 @@ impl MioError {
     }
 
     pub fn from_sys_error(err: SysError) -> MioError {
-        let kind = match err.kind {
-            EAGAIN => WouldBlock,
-            EADDRINUSE => AddrInUse,
-            _ => OtherError
-        };
-
-        MioError {
-            kind: kind,
-            sys: Some(err)
-        }
+        err.to_mio_error()
     }
 
     pub fn is_eof(&self) -> bool {

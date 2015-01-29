@@ -1,18 +1,34 @@
 use std::mem;
 use std::num::Int;
-use error::{MioResult, MioError};
+use error::{MioResult, MioError, MioErrorKind, ToMioError};
 use net::{AddressFamily, SockAddr, IPv4Addr, SocketType};
 use net::SocketType::{Dgram, Stream};
 use net::SockAddr::{InetAddr, UnixAddr};
 use net::AddressFamily::{Inet, Inet6, Unix};
 pub use std::old_io::net::ip::IpAddr;
+pub use nix::errno::SysError;
 
 mod nix {
     pub use nix::c_int;
     pub use nix::fcntl::{Fd, O_NONBLOCK, O_CLOEXEC};
-    pub use nix::errno::EINPROGRESS;
+    pub use nix::errno::{EINPROGRESS, EAGAIN, EADDRINUSE};
     pub use nix::sys::socket::*;
     pub use nix::unistd::*;
+}
+
+impl ToMioError for SysError {
+	fn to_mio_error(self) -> MioError {
+		let kind = match self.kind {
+            nix::EAGAIN => MioErrorKind::WouldBlock,
+            nix::EADDRINUSE => MioErrorKind::AddrInUse,
+            _ => MioErrorKind::OtherError
+        };
+
+        MioError {
+            kind: kind,
+            sys: Some(self)
+        }
+	}
 }
 
 /*

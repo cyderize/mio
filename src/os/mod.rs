@@ -4,6 +4,9 @@ pub use self::epoll::{Events, Selector};
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 pub use self::kqueue::{Events, Selector};
 
+#[cfg(windows)]
+pub use self::iocp::{Events, Selector};
+
 #[cfg(unix)]
 pub use self::posix::*;
 
@@ -21,6 +24,9 @@ mod epoll;
 
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 mod kqueue;
+
+#[cfg(windows)]
+mod iocp;
 
 #[cfg(target_os = "linux")]
 mod linux;
