@@ -125,6 +125,7 @@ impl Error for MioError {
 impl FromError<SysError> for MioError {
 	#[cfg(unix)]
 	fn from_error(err: SysError) -> MioError {
+		use nix::errno::{EAGAIN, EADDRINUSE};
 	    let kind = match err.kind {
             EAGAIN => WouldBlock,
             EADDRINUSE => AddrInUse,
