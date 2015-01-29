@@ -121,13 +121,11 @@ pub fn connect(io: &IoDesc, addr: &SockAddr) -> MioResult<bool> {
 }
 
 pub fn bind(io: &IoDesc, addr: &SockAddr) -> MioResult<()> {
-    try!(nix::bind(io.fd, &from_sockaddr(addr)));
-	Ok(())
+    Ok(try!(nix::bind(io.fd, &from_sockaddr(addr))))
 }
 
 pub fn listen(io: &IoDesc, backlog: usize) -> MioResult<()> {
-    try!(nix::listen(io.fd, backlog));
-	Ok(())
+    Ok(try!(nix::listen(io.fd, backlog)))
 }
 
 pub fn accept(io: &IoDesc) -> MioResult<IoDesc> {
@@ -161,8 +159,7 @@ pub fn read(io: &IoDesc, dst: &mut [u8]) -> MioResult<usize> {
 
 #[inline]
 pub fn write(io: &IoDesc, src: &[u8]) -> MioResult<usize> {
-    try!(nix::write(io.fd, src));
-	Ok(())
+	Ok(try!(nix::write(io.fd, src)))
 }
 
 // ===== Socket options =====
@@ -174,42 +171,37 @@ pub fn reuseaddr(_io: &IoDesc) -> MioResult<usize> {
 pub fn set_reuseaddr(io: &IoDesc, val: bool) -> MioResult<()> {
     let v: nix::c_int = if val { 1 } else { 0 };
 
-    try!(nix::setsockopt(io.fd, nix::SOL_SOCKET, nix::SO_REUSEADDR, &v));
-	Ok(())
+    Ok(try!(nix::setsockopt(io.fd, nix::SOL_SOCKET, nix::SO_REUSEADDR, &v)))
 }
 
 pub fn set_reuseport(io: &IoDesc, val: bool) -> MioResult<()> {
     let v: nix::c_int = if val { 1 } else { 0 };
 
-    try!(nix::setsockopt(io.fd, nix::SOL_SOCKET, nix::SO_REUSEPORT, &v));
-	Ok(())
+    Ok(try!(nix::setsockopt(io.fd, nix::SOL_SOCKET, nix::SO_REUSEPORT, &v)))
 }
 
 pub fn set_tcp_nodelay(io: &IoDesc, val: bool) -> MioResult<()> {
     let v: nix::c_int = if val { 1 } else { 0 };
 
-    try!(nix::setsockopt(io.fd, nix::IPPROTO_TCP, nix::TCP_NODELAY, &v));
-	Ok(())
+    Ok(try!(nix::setsockopt(io.fd, nix::IPPROTO_TCP, nix::TCP_NODELAY, &v)))
 }
 
 pub fn join_multicast_group(io: &IoDesc, addr: &IpAddr, interface: &Option<IpAddr>) -> MioResult<()> {
     let grp_req = try!(make_ip_mreq(addr, interface));
 
-    try!(nix::setsockopt(io.fd, nix::IPPROTO_IP, nix::IP_ADD_MEMBERSHIP, &grp_req));
-	Ok(())
+    Ok(try!(nix::setsockopt(io.fd, nix::IPPROTO_IP, nix::IP_ADD_MEMBERSHIP, &grp_req)))
 }
 
 pub fn leave_multicast_group(io: &IoDesc, addr: &IpAddr, interface: &Option<IpAddr>) -> MioResult<()> {
     let grp_req = try!(make_ip_mreq(addr, interface));
 
-    try!(nix::setsockopt(io.fd, nix::IPPROTO_IP, nix::IP_ADD_MEMBERSHIP, &grp_req));
-	Ok(())
+    Ok(try!(nix::setsockopt(io.fd, nix::IPPROTO_IP, nix::IP_ADD_MEMBERSHIP, &grp_req)))
 }
 
 pub fn set_multicast_ttl(io: &IoDesc, val: u8) -> MioResult<()> {
     let v: nix::IpMulticastTtl = val;
 
-    try!(nix::setsockopt(io.fd, nix::IPPROTO_IP, nix::IP_MULTICAST_TTL, &v));
+    Ok(try!(nix::setsockopt(io.fd, nix::IPPROTO_IP, nix::IP_MULTICAST_TTL, &v)))
 }
 
 pub fn linger(io: &IoDesc) -> MioResult<usize> {
@@ -248,8 +240,7 @@ pub fn set_linger(io: &IoDesc, dur_s: usize) -> MioResult<()> {
         l_linger: dur_s as nix::c_int
     };
 
-    try!(nix::setsockopt(io.fd, nix::SOL_SOCKET, nix::SO_LINGER, &linger));
-	Ok(())
+    Ok(try!(nix::setsockopt(io.fd, nix::SOL_SOCKET, nix::SO_LINGER, &linger)))
 }
 
 fn make_ip_mreq(group_addr: &IpAddr, iface_addr: &Option<IpAddr>) -> MioResult<nix::ip_mreq> {
